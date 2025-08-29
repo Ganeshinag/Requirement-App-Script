@@ -1,0 +1,86 @@
+function sendRequirementEmail() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var activeRow = sheet.getActiveRange().getRow();
+
+  if (activeRow === 1) return; // skip header row
+
+  // Get row data only for required columns B to F
+  var rowData = sheet.getRange(activeRow, 2, 1, 5).getValues()[0]; // B to F
+  if (rowData.some(function(val){ return val === "" || val === null; })) return; // exit silently if empty
+
+  // Optional: Check if already submitted (column K)
+  var statusCol = 11; // Column K
+  var status = sheet.getRange(activeRow, statusCol).getValue();
+  if (status && status.toString().toLowerCase().includes("submitted")) return;
+
+  var headers = sheet.getRange(1, 2, 1, 5).getValues()[0]; // headers B to F
+  var timestamp = new Date().toLocaleString();
+  var editorEmail = Session.getActiveUser().getEmail();
+
+  // Generate unique code (Column J = 10)
+  var yearCode = "24-25";
+  var lastCodeRow = sheet.getLastRow() - 1; // excluding header
+  var generatedCode = "PR_FYZ_" + yearCode + "_" + ("0000" + lastCodeRow).slice(-4);
+  sheet.getRange(activeRow, 10).setValue(generatedCode); // save in column J
+
+  // Build HTML table preview
+  var html = "<style>" +
+             "table {border-collapse: collapse; width: 100%;}" +
+             "th, td {border: 1px solid #ddd; padding: 8px; text-align: left;}" +
+             "th {background-color: #f2f2f2;}" +
+             ".btn-submit {background-color: #4CAF50; color: white; padding: 8px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; margin-right:10px;}" +
+             ".btn-submit:hover {background-color: #45a049;}" +
+             ".btn-cancel {background-color: #f44336; color: white; padding: 8px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;}" +
+             ".btn-cancel:hover {background-color: #da190b;}" +
+             ".code {font-size:16px; font-weight:bold; color:#007BFF; margin-bottom:10px; display:block;}" +
+             "</style>";
+
+  html += "<h3>Requirement Preview</h3>";
+  html += "<span class='code'>" + generatedCode + "</span>";
+  html += "<table><tr>";
+  headers.forEach(function(header){ html += "<th>" + header + "</th>"; });
+  html += "</tr><tr>";
+  rowData.forEach(function(cell){ html += "<td>" + cell + "</td>"; });
+  html += "</tr></table>";
+  html += "<p><strong>Timestamp:</strong> " + timestamp + "</p>";
+  html += "<p><strong>Edited By:</strong> " + editorEmail + "</p>";
+  html += "<br>";
+  html += "<button class='btn-submit' onclick='google.script.run.withSuccessHandler(closeDialog).sendEmailFromPreview(" + activeRow + ")'>Submit</button>";
+  html += "<button class='btn-cancel' onclick='closeDialog()'>Cancel</button>";
+  html += "<script>function closeDialog(){google.script.host.close();}</script>";
+
+  var userInterface = HtmlService.createHtmlOutput(html).setWidth(500).setHeight(350);
+  SpreadsheetApp.getUi().showModalDialog(userInterface, 'Requirement Preview');
+}
+
+// Function to send email and mark as submitted
+function sendEmailFromPreview(activeRow) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var rowData = sheet.getRange(activeRow, 2, 1, 5).getValues()[0]; // B to F
+  var headers = sheet.getRange(1, 2, 1, 5).getValues()[0];
+  var timestamp = new Date().toLocaleString();
+  var editorEmail = Session.getActiveUser().getEmail();
+  var generatedCode = sheet.getRange(activeRow, 10).getValue(); // Column J
+
+  // Build email HTML
+  var htmlBody = "<h2>New Requirement Added</h2>";
+  htmlBody += "<p><strong>Requirement ID:</strong> " + generatedCode + "</p>";
+  htmlBody += "<p><strong>Timestamp:</strong> " + timestamp + "</p>";
+  htmlBody += "<p><strong>Edited By:</strong> " + editorEmail + "</p>";
+  htmlBody += "<table border='1' style='border-collapse: collapse;'><tr>";
+  headers.forEach(function(header){ htmlBody += "<th style='padding:5px;background:#f2f2f2;'>" + header + "</th>"; });
+  htmlBody += "</tr><tr>";
+  rowData.forEach(function(cell){ htmlBody += "<td style='padding:5px;'>" + cell + "</td>"; });
+  htmlBody += "</tr></table>";
+
+  // Send email
+  MailApp.sendEmail({
+    to: "arunkumar@fyzks.com",
+    cc: "ganesh.p@fyzks.com",
+    subject: "Procurement Request for Approval - " + rowData[1], // Item name
+    htmlBody: htmlBody
+  });
+
+  // Mark as submitted
+  sheet.getRange(activeRow, 11).setValue("Submitted on " + timestamp);
+}
