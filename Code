@@ -1,23 +1,24 @@
 /***************
  CONFIG (Change these)
 ****************/
-const APPROVER_EMAIL = "arunkumar@fyzks.com";  // Approver's email
-const CC_EMAIL = "ganesh.p@fyzks.com";         // CC email
-const ADMINS = ["ganesh.p@fyzks.com"];         // Only admin(s) can Re-send approval
+const APPROVER_EMAIL = "arunkumar@fyzks.com";
+const CC_EMAIL = "ganesh.p@fyzks.com";
+const ADMINS = ["ganesh.p@fyzks.com"];
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz1D_6prM-m_dOKO9oS14BnJErMkRd-QBYQiMIGE9t9ZGQYzwt1pk87uPJxZ9B0Tn79/exec";
 
-// Column positions in your sheet
-const REQUEST_DATE_COLUMN = 1;      // A
-const REQUESTED_BY_COLUMN = 2;      // B
-const ITEM_COLUMN = 3;              // C
-const DESCRIPTION_COLUMN = 4;       // D
-const QUANTITY_COLUMN = 5;          // E
-const PRIORITY_COLUMN = 6;          // F
-const STATUS_COLUMN = 7;            // G
+// Column positions
+const REQUEST_DATE_COLUMN = 1;
+const REQUESTED_BY_COLUMN = 2;
+const ITEM_COLUMN = 3;
+const DESCRIPTION_COLUMN = 4;
+const QUANTITY_COLUMN = 5;
+const PRIORITY_COLUMN = 6;
+const STATUS_COLUMN = 7;            // G - Approval Status
 const PURCHASE_DATE_COLUMN = 8;     // H
-const SUBMISSION_STATUS_COLUMN = 9; // I
+const SUBMISSION_STATUS_COLUMN = 9; // I - Request Status
 const REQUEST_ID_COLUMN = 10;       // J
 const REQUESTER_EMAIL_COLUMN = 11;  // K
-const RESEND_COLUMN = 12;           // L
+const RESEND_COLUMN = 12;           // L - Re-send Link
 
 /***************
  MENU
@@ -32,14 +33,19 @@ function onOpen() {
  GENERATE REQUEST ID
 ****************/
 function generateRequestId(sheet) {
-  const lastId = sheet.getRange(sheet.getLastRow(), REQUEST_ID_COLUMN).getValue();
   const yearCode = "24-25";
-  if (!lastId) return `PR_FYZ_${yearCode}_001`;
+  const idColumn = REQUEST_ID_COLUMN;
+  const lastRow = sheet.getLastRow();
 
+  const ids = sheet.getRange(2, idColumn, lastRow - 1).getValues().flat().filter(String);
+
+  if (ids.length === 0) return `PR_FYZ_${yearCode}_001`;
+
+  const lastId = ids[ids.length - 1];
   const parts = lastId.split("_");
   let num = parseInt(parts[3]) + 1;
-  let numStr = num.toString().padStart(3, '0');
-  return `PR_FYZ_${yearCode}_${numStr}`;
+
+  return `PR_FYZ_${yearCode}_${num.toString().padStart(3, '0')}`;
 }
 
 /***************
@@ -57,7 +63,6 @@ function submitRequest() {
   }
 
   const requesterEmail = Session.getActiveUser().getEmail();
-  const requesterName = requesterEmail.split("@")[0];
   sheet.getRange(lastRow, REQUESTER_EMAIL_COLUMN).setValue(requesterEmail);
 
   const requestId = generateRequestId(sheet);
@@ -72,22 +77,9 @@ function submitRequest() {
 
   const tableHtml = `
     <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:Arial;font-size:13px;text-align:center;">
-      <tr style="background:#f2f2f2;">
-        <th>Request ID</th>
-        <th>Item</th>
-        <th>Description</th>
-        <th>Quantity</th>
-        <th>Priority</th>
-      </tr>
-      <tr>
-        <td>${requestId}</td>
-        <td>${item}</td>
-        <td>${description}</td>
-        <td>${quantity}</td>
-        <td>${priority}</td>
-      </tr>
-    </table>
-  `;
+      <tr style="background:#f2f2f2;"><th>Request ID</th><th>Item</th><th>Description</th><th>Quantity</th><th>Priority</th></tr>
+      <tr><td>${requestId}</td><td>${item}</td><td>${description}</td><td>${quantity}</td><td>${priority}</td></tr>
+    </table>`;
 
   const htmlOutput = HtmlService.createHtmlOutput(`
     <div style="font-family:Arial;font-size:14px;">
@@ -95,13 +87,11 @@ function submitRequest() {
       ${tableHtml}
       <br>
       <div style="text-align:center;">
-        <button style="background:#28a745;color:#fff;padding:10px 18px;margin-right:15px;border:none;border-radius:6px;font-size:14px;cursor:pointer;"
-          onclick="google.script.run.withSuccessHandler(()=>google.script.host.close()).sendProcurementRequestEmail(${lastRow},'${requesterEmail}','${requestId}')">Submit Request</button>
-        <button style="background:#dc3545;color:#fff;padding:10px 18px;border:none;border-radius:6px;font-size:14px;cursor:pointer;"
-          onclick="google.script.host.close()">Cancel</button>
+        <button style="background:#28a745;color:#fff;padding:10px 18px;margin-right:15px;border:none;border-radius:6px;cursor:pointer;"
+          onclick="google.script.run.withSuccessHandler(()=>google.script.host.close()).sendProcurementRequestEmail(${lastRow},'${requesterEmail}','${requestId}')">Submit</button>
+        <button style="background:#dc3545;color:#fff;padding:10px 18px;border:none;border-radius:6px;cursor:pointer;" onclick="google.script.host.close()">Cancel</button>
       </div>
-    </div>
-  `).setWidth(650).setHeight(300);
+    </div>`).setWidth(650).setHeight(300);
 
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, "Confirm Request");
 }
@@ -111,124 +101,155 @@ function submitRequest() {
 ****************/
 function sendProcurementRequestEmail(row, requesterEmail, requestId) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  const requesterName = requesterEmail.split("@")[0];
-  const approverName = APPROVER_EMAIL.split("@")[0];
-
   const item = sheet.getRange(row, ITEM_COLUMN).getValue();
   const description = sheet.getRange(row, DESCRIPTION_COLUMN).getValue();
   const quantity = sheet.getRange(row, QUANTITY_COLUMN).getValue();
   const priority = sheet.getRange(row, PRIORITY_COLUMN).getValue();
 
   const subject = `Procurement Request for Approval - ${item}`;
-  const tableHtml = `
-    <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:Arial;font-size:13px;text-align:center;">
-      <tr style="background:#f2f2f2;">
-        <th>Request ID</th>
-        <th>Item</th>
-        <th>Description</th>
-        <th>Quantity</th>
-        <th>Priority</th>
-      </tr>
-      <tr>
-        <td>${requestId}</td>
-        <td>${item}</td>
-        <td>${description}</td>
-        <td>${quantity}</td>
-        <td>${priority}</td>
-      </tr>
-    </table>
-  `;
+  const tableHtml = `<table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:Arial;font-size:13px;text-align:center;">
+  <tr style="background:#f2f2f2;"><th>Request ID</th><th>Item</th><th>Description</th><th>Quantity</th><th>Priority</th></tr>
+  <tr><td>${requestId}</td><td>${item}</td><td>${description}</td><td>${quantity}</td><td>${priority}</td></tr>
+  </table>`;
 
-  const baseUrl = "https://script.google.com/macros/s/AKfycbxGi7-e9bKpxrwYxY_ZYnF7zm60lIq_v-i3uEqkRRUxizyLJsrjOjxUuZGp6yA9r8gGWg/exec";  // ⚠️ Change this after each deploy
-  const approvalUrl = baseUrl + `?action=Approved&id=${requestId}&row=${row}&req=${requesterEmail}`;
-  const declineUrl  = baseUrl + `?action=Declined&id=${requestId}&row=${row}&req=${requesterEmail}`;
-  const holdUrl     = baseUrl + `?action=On Hold&id=${requestId}&row=${row}&req=${requesterEmail}`;
+  const approvalUrl = `${WEB_APP_URL}?action=Approved&id=${requestId}&req=${requesterEmail}`;
+  const declineUrl = `${WEB_APP_URL}?action=Declined&id=${requestId}&req=${requesterEmail}`;
+  const holdUrl = `${WEB_APP_URL}?action=On Hold&id=${requestId}&req=${requesterEmail}`;
 
-  const emailBody = `
-    <div style="font-family:Arial, sans-serif; font-size:14px; color:#333;">
-      <p>Dear ${approverName},</p>
-      <p>
-        This is to inform that <b>${requesterName}</b> has raised a request 
-        <b>${requestId}</b> - <b>${item}</b> for procurement.
-      </p>
-      <p>The following details are provided:</p>
-      ${tableHtml}
-      <br>
-      <p>Please review and provide your approval to proceed with the procurement process.</p>
-      <p>
-        <a href="${approvalUrl}" style="background:#28a745;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px;">Approve</a>
-        <a href="${declineUrl}" style="background:#dc3545;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px;margin-left:10px;">Decline</a>
-        <a href="${holdUrl}" style="background:#ffc107;color:#000;padding:10px 16px;text-decoration:none;border-radius:6px;margin-left:10px;">On Hold</a>
-      </p>
-      <br>
-      <p>Regards,<br><b>${requesterName}</b></p>
-    </div>
-  `;
+  const emailBody = `<div style="font-family:Arial;font-size:14px;">
+    <p>Dear Approver,</p>
+    <p>${requesterEmail.split("@")[0]} has raised <b>${requestId}</b> - <b>${item}</b>.</p>
+    ${tableHtml}
+    <br>
+    <p>
+      <a href="${approvalUrl}" style="background:#28a745;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px;">Approve</a>
+      <a href="${declineUrl}" style="background:#dc3545;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px;margin-left:10px;">Decline</a>
+      <a href="${holdUrl}" style="background:#ffc107;color:#000;padding:10px 16px;text-decoration:none;border-radius:6px;margin-left:10px;">On Hold</a>
+    </p>
+  </div>`;
 
-  MailApp.sendEmail({
-    to: APPROVER_EMAIL,
-    cc: CC_EMAIL,
-    subject: subject,
-    htmlBody: emailBody
-  });
-
-  sheet.getRange(row, STATUS_COLUMN).setValue("Submitted");
+  MailApp.sendEmail({to: APPROVER_EMAIL, cc: CC_EMAIL, subject, htmlBody: emailBody});
 }
 
 /***************
- APPROVAL HANDLER (Static UI)
+ HELPER: Get row by Request ID
+****************/
+function getRowByRequestId(requestId) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const data = sheet.getRange(2, REQUEST_ID_COLUMN, sheet.getLastRow() - 1).getValues();
+  for (let i = 0; i < data.length; i++) {
+    if (data[i][0] === requestId) return i + 2; // +2 because data starts at row 2
+  }
+  return null;
+}
+
+/***************
+ RESEND BUTTON HANDLER
+****************/
+function showResendButton(row) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const status = sheet.getRange(row, STATUS_COLUMN).getValue();
+  const requestId = sheet.getRange(row, REQUEST_ID_COLUMN).getValue();
+
+  if (status === "On Hold") {
+    if (!WEB_APP_URL) throw new Error("❌ WEB_APP_URL is not defined.");
+    const resendUrl = `${WEB_APP_URL}?action=resend&id=${encodeURIComponent(requestId)}`;
+    sheet.getRange(row, RESEND_COLUMN).setFormula(`=HYPERLINK("${resendUrl}", "🔄 Re-send")`);
+  } else {
+    sheet.getRange(row, RESEND_COLUMN).setValue("");
+  }
+}
+
+/***************
+ RESEND REQUEST
+****************/
+function resendRequest(requestId) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const row = getRowByRequestId(requestId);
+
+  if (!row) return false;
+
+  const requesterEmail = sheet.getRange(row, REQUESTER_EMAIL_COLUMN).getValue();
+
+  // Re-send original email
+  sendProcurementRequestEmail(row, requesterEmail, requestId);
+
+  // Reset status to Pending
+  sheet.getRange(row, STATUS_COLUMN).setValue("Pending");
+
+  // Clear the resend link
+  sheet.getRange(row, RESEND_COLUMN).setValue("");
+
+  return true;
+}
+
+/***************
+ FOLLOW-UP MAIL
+****************/
+function sendFollowupMail(requesterEmail, status) {
+  MailApp.sendEmail({to: requesterEmail, subject: `Your Request is ${status}`, htmlBody: `<p>Your request has been <b>${status}</b>.</p>`});
+}
+
+/***************
+ DO GET (Approval Handler)
 ****************/
 function doGet(e) {
-  var requestId = e.parameter.id;
-  var action = e.parameter.action;
+  const action = e.parameter.action;
+  const requestId = e.parameter.id;
+  const requesterEmail = e.parameter.req;
 
-  var images = {
+  const row = getRowByRequestId(requestId);
+  if (!row) {
+    return HtmlService.createHtmlOutput(`<html><body><h2>❌ Request ID ${requestId} not found.</h2></body></html>`);
+  }
+
+  // Handle resend
+  if (action === "resend") {
+    resendRequest(requestId);
+    return HtmlService.createHtmlOutput(`
+      <html><body style="text-align:center;font-family:Arial;">
+        <h2 style="color:blue;">🔄 Request ${requestId} Re-sent Successfully!</h2>
+        <p>You can close this tab now.</p>
+      </body></html>
+    `);
+  }
+
+  // Handle Approve / Decline / On Hold
+  if (["Approved", "Declined", "On Hold"].includes(action)) {
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    sheet.getRange(row, STATUS_COLUMN).setValue(action);
+    if (action === "On Hold") showResendButton(row);
+    sendFollowupMail(requesterEmail, action);
+  }
+
+  // Show status card
+  const images = {
     "Approved": "https://raw.githubusercontent.com/Ganeshinag/Requirement-App-Script/main/Approved.png",
     "Declined": "https://raw.githubusercontent.com/Ganeshinag/Requirement-App-Script/main/Declined.png",
     "On Hold": "https://raw.githubusercontent.com/Ganeshinag/Requirement-App-Script/main/On%20Hold.png"
   };
-
-  var imgUrl = images[action] || "";
-
-  var html = `
-    <html>
-    <head>
-      <style>
-        body {
-          font-family: 'Segoe UI', sans-serif;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          height: 100vh;
-          background: #f9fafb;
-        }
-        .card {
-          background: white;
-          padding: 30px;
-          border-radius: 16px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-          text-align: center;
-        }
-        .request-id {
-          font-size: 18px;
-          font-weight: bold;
-          margin-bottom: 20px;
-        }
-        .card img {
-          width: 280px;
-          height: auto;
-          margin-bottom: 20px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="card">
-        <div class="request-id">Request ID: ${requestId}</div>
-        <img src="${imgUrl}" alt="${action}">
-      </div>
-    </body>
-    </html>
-  `;
-
+  const imgUrl = images[action] || "";
+  const html = `<html><head><style>
+    body{font-family:Segoe UI;display:flex;align-items:center;justify-content:center;height:100vh;background:#f9fafb;}
+    .card{background:white;padding:40px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.15);text-align:center;}
+    .card img{width:260px;height:auto;margin-bottom:20px;}
+    .card h2{margin:10px 0;font-size:22px;color:#333;}
+  </style></head><body>
+    <div class="card">
+      <h2>${requestId}</h2>
+      <img src="${imgUrl}" alt="${action}">
+    </div></body></html>`;
   return HtmlService.createHtmlOutput(html);
+}
+
+/***************
+ ON EDIT
+****************/
+function onEdit(e) {
+  const range = e.range;
+  const sheet = range.getSheet();
+
+  if (range.getColumn() === STATUS_COLUMN) {
+    showResendButton(range.getRow());
+  }
 }
