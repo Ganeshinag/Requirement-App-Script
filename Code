@@ -75,7 +75,45 @@ function submitRequest() {
   const quantity = sheet.getRange(lastRow, QUANTITY_COLUMN).getValue();
   const priority = sheet.getRange(lastRow, PRIORITY_COLUMN).getValue();
 
-  const tableHtml = `
+const tableHtml = `
+  <table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #ccc;margin-top:6px;text-align:center;">
+    <thead>
+      <tr style="background:#f8f9fa;">
+        <th style="padding:6px;border:1px solid #ccc;">Request ID</th>
+        <th style="padding:6px;border:1px solid #ccc;">Item</th>
+        <th style="padding:6px;border:1px solid #ccc;">Description</th>
+        <th style="padding:6px;border:1px solid #ccc;">Quantity</th>
+        <th style="padding:6px;border:1px solid #ccc;">Priority</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding:5px;border:1px solid #ccc;">${requestId}</td>
+        <td style="padding:5px;border:1px solid #ccc;">${item}</td>
+        <td style="padding:5px;border:1px solid #ccc;">${description}</td>
+        <td style="padding:5px;border:1px solid #ccc;">${quantity}</td>
+        <td style="padding:5px;border:1px solid #ccc;">${priority}</td>
+      </tr>
+    </tbody>
+  </table>`;
+
+const htmlOutput = HtmlService.createHtmlOutput(`
+  <div style="font-family:'Segoe UI',Arial,sans-serif;font-size:14px;padding:15px;text-align:center;">
+    ${tableHtml}
+    <div style="margin-top:20px;">
+      <button style="background:#28a745;color:#fff;padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:14px;margin-right:12px;"
+        onclick="google.script.run.withSuccessHandler(()=>google.script.host.close()).sendProcurementRequestEmail(${lastRow},'${requesterEmail}','${requestId}')">
+        Submit
+      </button>
+      <button style="background:#dc3545;color:#fff;padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:14px;"
+        onclick="google.script.host.close()">
+        Cancel
+      </button>
+    </div>
+  </div>
+`).setWidth(600).setHeight(280);
+
+/*const tableHtml = `
     <table border="1" cellspacing="0" cellpadding="6" style="border-collapse:collapse;font-family:Arial;font-size:13px;text-align:center;">
       <tr style="background:#f2f2f2;"><th>Request ID</th><th>Item</th><th>Description</th><th>Quantity</th><th>Priority</th></tr>
       <tr><td>${requestId}</td><td>${item}</td><td>${description}</td><td>${quantity}</td><td>${priority}</td></tr>
@@ -91,7 +129,7 @@ function submitRequest() {
           onclick="google.script.run.withSuccessHandler(()=>google.script.host.close()).sendProcurementRequestEmail(${lastRow},'${requesterEmail}','${requestId}')">Submit</button>
         <button style="background:#dc3545;color:#fff;padding:10px 18px;border:none;border-radius:6px;cursor:pointer;" onclick="google.script.host.close()">Cancel</button>
       </div>
-    </div>`).setWidth(650).setHeight(300);
+    </div>`).setWidth(650).setHeight(300)*/
 
   SpreadsheetApp.getUi().showModalDialog(htmlOutput, "Confirm Request");
 }
@@ -99,6 +137,73 @@ function submitRequest() {
 /***************
  SEND EMAIL
 ****************/
+function sendProcurementRequestEmail(row, requesterEmail, requestId) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+  // Fetch values from sheet
+  const item = sheet.getRange(row, ITEM_COLUMN).getValue();
+  const description = sheet.getRange(row, DESCRIPTION_COLUMN).getValue();
+  const quantity = sheet.getRange(row, QUANTITY_COLUMN).getValue();
+  const priority = sheet.getRange(row, PRIORITY_COLUMN).getValue();
+
+  const subject = `Procurement Request for Approval - ${item}`;
+
+  // Table (compact and Gmail-safe)
+  const tableHtml = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px;border:1px solid #ccc;margin-top:6px;">
+      <thead>
+        <tr style="background:#f8f9fa;">
+          <th style="padding:6px;border:1px solid #ccc;text-align:center;">Request ID</th>
+          <th style="padding:6px;border:1px solid #ccc;text-align:center;">Item</th>
+          <th style="padding:6px;border:1px solid #ccc;text-align:center;">Description</th>
+          <th style="padding:6px;border:1px solid #ccc;text-align:center;">Quantity</th>
+          <th style="padding:6px;border:1px solid #ccc;text-align:center;">Priority</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="padding:5px;border:1px solid #ccc;text-align:center;">${requestId}</td>
+          <td style="padding:5px;border:1px solid #ccc;text-align:center;">${item}</td>
+          <td style="padding:5px;border:1px solid #ccc;text-align:center;">${description}</td>
+          <td style="padding:5px;border:1px solid #ccc;text-align:center;">${quantity}</td>
+          <td style="padding:5px;border:1px solid #ccc;text-align:center;">${priority}</td>
+        </tr>
+      </tbody>
+    </table>`; // ✅ Closing backtick added here
+
+  // Action URLs
+  const approvalUrl = `${WEB_APP_URL}?action=Approved&id=${requestId}&req=${requesterEmail}`;
+  const declineUrl = `${WEB_APP_URL}?action=Declined&id=${requestId}&req=${requesterEmail}`;
+  const holdUrl = `${WEB_APP_URL}?action=On Hold&id=${requestId}&req=${requesterEmail}`;
+
+  // Email Body (Gmail-safe)
+  const emailBody = `
+    <div style="font-family:'Segoe UI',Arial,sans-serif;background:#ffffff;color:#000;">
+
+      <p>Dear ${APPROVER_EMAIL.split("@")[0]},</p>
+      <p><strong>${requesterEmail.split("@")[0]}</strong> has raised a new request : <b>${requestId}</b></p>
+      <p>We request you to review the details and allow us to proceed with the next process.</p>
+      ${tableHtml}
+      <div style="text-align:center;margin-top:20px;">
+        <a href="${approvalUrl}" style="background:#28a745;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px;display:inline-block;">Approve</a>
+        <a href="${declineUrl}" style="background:#dc3545;color:#fff;padding:10px 16px;text-decoration:none;border-radius:6px;display:inline-block;margin-left:10px;">Decline</a>
+        <a href="${holdUrl}" style="background:#ffc107;color:#000;padding:10px 16px;text-decoration:none;border-radius:6px;display:inline-block;margin-left:10px;">On Hold</a>
+      </div>
+      <p>Regards,<br>${requesterEmail.split("@")[0]}</p>
+    </div>
+  `;
+
+  MailApp.sendEmail({
+    to: APPROVER_EMAIL,
+    cc: CC_EMAIL,
+    subject,
+    htmlBody: emailBody
+  });
+}
+
+
+
+/*
 function sendProcurementRequestEmail(row, requesterEmail, requestId) {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   const item = sheet.getRange(row, ITEM_COLUMN).getValue();
@@ -130,7 +235,7 @@ function sendProcurementRequestEmail(row, requesterEmail, requestId) {
 
   MailApp.sendEmail({to: APPROVER_EMAIL, cc: CC_EMAIL, subject, htmlBody: emailBody});
 }
-
+*/
 /***************
  HELPER: Get row by Request ID
 ****************/
@@ -205,14 +310,26 @@ function doGet(e) {
 
   // Handle resend
   if (action === "resend") {
+    const successImg = "https://raw.githubusercontent.com/Ganeshinag/Requirement-App-Script/main/Re-sent.png"; 
+    // 👆 Upload a "Resent Successfully" vector/icon to your GitHub just like Approved/Declined/On Hold
+
     resendRequest(requestId);
-    return HtmlService.createHtmlOutput(`
-      <html><body style="text-align:center;font-family:Arial;">
-        <h2 style="color:blue;">🔄 Request ${requestId} Re-sent Successfully!</h2>
-        <p>You can close this tab now.</p>
-      </body></html>
-    `);
+
+    const html = `
+      <html><head><style>
+        body{font-family:Segoe UI;display:flex;align-items:center;justify-content:center;height:100vh;background:#f9fafb;}
+        .card{background:white;padding:40px;border-radius:16px;box-shadow:0 4px 12px rgba(0,0,0,0.15);text-align:center;animation:pop 0.5s ease;}
+        .card img{width:260px;height:auto;margin-bottom:20px;}
+        .card h2{margin:10px 0;font-size:22px;color:#333;}
+        @keyframes pop {0%{transform:scale(0.8);opacity:0;} 100%{transform:scale(1);opacity:1;}}
+      </style></head><body>
+        <div class="card">
+          <h2>${requestId}</h2>
+          <img src="${successImg}" alt="Resent">      
+        </div></body></html>`;
+    return HtmlService.createHtmlOutput(html);
   }
+
 
   // Handle Approve / Decline / On Hold
   if (["Approved", "Declined", "On Hold"].includes(action)) {
