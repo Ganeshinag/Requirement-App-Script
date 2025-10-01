@@ -1,155 +1,105 @@
-Procurement Request Automation System
-Overview
+🛠️ Procurement Request Automation System
 
-The Procurement Request Automation System streamlines the process of requesting, reviewing, and approving procurement items within an organization using Google Sheets, Apps Script, and Gmail.
+✨ Overview
 
-This system eliminates manual email communication and approval tracking by automating the workflow from request submission to final approval — all while keeping records synchronized in real time.
+The Procurement Request Automation System automates procurement workflows for organizations.
+Employees submit requests via Google Sheets, managers approve/decline via Gmail, and all updates are synchronized in real-time.
 
-Features
+No more manual emails or delays — everything is automated, trackable, and easy to manage.
 
-Automated Request ID Generation: Unique, sequential IDs for every new procurement request.
+<details> <summary>📋 Features</summary>
 
-One-Click Email Approvals: Approvers can Approve, Decline, or Hold requests directly from Gmail.
+✅ Automatic Request ID generation (PR_FYZ_24-25_001)
 
-Real-Time Updates: Sheet status updates instantly upon any action.
+✅ Email notifications with Approve / Decline / On Hold buttons
 
-Re-send Logic: Requests placed On Hold can be easily re-submitted via auto-generated links.
+✅ Real-time status updates in Google Sheets
 
-Error Logging & Notifications: Automatic error handling and admin alerts.
+✅ Resend requests automatically for items On Hold
 
-User-Friendly Interface: Sheet-based frontend with modal confirmation dialogs.
+✅ Confirmation emails to requester
 
-Tech Stack
+✅ Error handling and admin notifications
+
+</details> <details> <summary>🛠️ Tech Stack</summary>
 Component	Technology
 Frontend	Google Sheets
-Backend	Google Apps Script (V8)
+Backend	Google Apps Script
 Communication	Gmail API
 UI Dialogs	HTML Service
 Storage	Google Sheets
-Workflow
+</details> <details> <summary>🚀 Workflow</summary>
+graph LR
+A[Requester fills Google Sheet] --> B[Submit Request]
+B --> C[Generate Request ID & Status = Pending]
+C --> D[Send HTML Email to Approver]
+D --> E{Approver Action}
+E -->|Approve| F[Status = Approved]
+E -->|Decline| G[Status = Declined]
+E -->|On Hold| H[Status = On Hold + Resend Link]
+H --> B[Resubmit Request]
 
-Requester fills out item details in Google Sheet and submits.
+</details> <details> <summary>👤 How to Use</summary>
+For Requesters
 
-Apps Script generates a unique Request ID and sends a formatted approval email to the Approver.
+Open the Google Sheet.
 
-Approver clicks Approve / Decline / Hold from the email.
+Fill in Item Name, Description, Quantity, Priority.
 
-System updates status automatically in the Sheet.
+Click Submit Request.
 
-Requester receives confirmation of final decision.
+Wait for confirmation email.
 
-System Roles
+For Approvers
 
-Requester (Employee) – Submits procurement requests.
+Open email notification.
 
-Approver (Manager) – Reviews and approves or rejects requests.
+Click Approve, Decline, or On Hold.
 
-Admin – Monitors Sheet and script health.
+Status updates automatically in the Sheet.
 
-Folder Structure
-/Procurement-Request-Automation/
-│
-├── src/
-│   ├── main.gs              # Core Apps Script logic
-│   ├── emailTemplate.html   # HTML email template for notifications
-│   ├── modalDialog.html     # Preview & confirmation modal
-│
-├── docs/
-│   ├── PRD.docx
-│   ├── BRD.docx
-│   ├── FSD.docx
-│   ├── TSD.docx
-│   ├── Test_Plan.docx
-│   ├── Deployment_Plan.docx
-│   ├── User_Guide.docx
-│   ├── Maintenance_Plan.docx
-│
-├── README.md
-└── LICENSE
+If On Hold, click Resend when ready.
 
-How It Works
-Submission
+</details> <details> <summary>⚙️ Installation</summary>
 
-Requester fills details → Clicks Submit Request button.
+Open Google Sheets → Extensions → Apps Script.
 
-System validates input and assigns a Request ID.
+Paste the code files.
 
-Status changes to Pending.
+Update constants:
 
-Email Trigger
-
-HTML-formatted email is sent to the approver.
-
-Approver views request summary and acts via buttons.
-
-Action Handler
-
-Approver’s click calls the doGet() web app endpoint.
-
-The system identifies the action and updates status in Google Sheet.
-
-Resend Logic
-
-If marked On Hold, a “Resend” link appears for the requester to update and re-trigger the email.
-
-Installation
-
-Open Google Sheets and go to Extensions → Apps Script.
-
-Paste code files from /src/.
-
-Update the constants:
-
-const APPROVER_EMAIL = "your-manager@example.com";
-const CC_EMAIL = "your-admin@example.com";
-const WEB_APP_URL = "Paste your deployed web app URL here";
+const APPROVER_EMAIL = "manager@example.com";
+const CC_EMAIL = "admin@example.com";
+const WEB_APP_URL = "your-web-app-url";
 
 
-Deploy script as a Web App with:
+Deploy as a Web App:
 
-Execute as: Me (Owner)
+Execute as: Me
 
 Access: Anyone with link
 
-Test the submission using sample data.
+Test with sample request.
 
-Testing
+</details> <details> <summary>🧪 Testing</summary>
 Test Case	Expected Result
 Submit new request	Generates Request ID, status = Pending
-Approve request	Updates status = Approved
-Decline request	Updates status = Declined
-On Hold	Adds “Re-send” link
-Re-send	Resubmits request email
-Deployment
+Approve request	Sheet updates, requester notified
+Decline request	Sheet updates, requester notified
+On Hold	“Resend” link appears
+Resend request	Email re-triggers, status = Pending
+</details> <details> <summary>🔮 Future Enhancements</summary>
 
-Deploy the script as a Web App.
+Multi-level approvals (Manager → Director)
 
-Share the Sheet with all users (Editor access).
+Slack / Teams notifications
 
-Run end-to-end tests with one sample request.
+Analytics dashboard for procurement trends
 
-Backup Sheet before production rollout.
+Mobile-friendly interface via AppSheet
 
-Maintenance
+</details> <details> <summary>📄 License</summary>
 
-Review script logs weekly.
+This project is licensed under the MIT License — use freely, credit the author, and no liability.
 
-Backup Sheet monthly.
-
-Update script for API changes.
-
-Track versioning in comments.
-
-Future Enhancements
-
-Multi-level approval chain (Manager → Director).
-
-Slack / Teams integration for instant notifications.
-
-Analytics dashboard for procurement trends.
-
-Mobile-friendly interface (AppSheet).
-
-License
-
-This project is licensed under the MIT License.
+</details>
